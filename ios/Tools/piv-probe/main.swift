@@ -87,6 +87,17 @@ final class CardTransport {
             throw ProbeError(String(format: "GET DATA failed: SW %02X%02X", sw1, sw2))
         }
 
+        // Detect and repair a short read — see TLV.declaredTotalLength.
+        if let declared = TLV.declaredTotalLength([UInt8](payload)), payload.count < declared {
+            warn("short read: got \(payload.count) bytes, object declares \(declared) — re-reading with Le=\(declared)")
+            let (full, fullSW1, fullSW2) = try await send(ins: 0xCB, p1: 0x3F, p2: 0xFF, data: objectID, le: declared)
+            guard fullSW1 == 0x90, fullSW2 == 0x00 else {
+                throw ProbeError(String(format: "Full re-read failed: SW %02X%02X", fullSW1, fullSW2))
+            }
+            payload = full
+            ok("recovered full object: \(payload.count) bytes")
+        }
+
         info("raw object: \(hex(payload))")
 
         let wrapper = try TLV.value(ofTag: 0x53, in: [UInt8](payload))
@@ -119,11 +130,14 @@ final class CardTransport {
 
             info("chunk \(chunkIndex): \(length) bytes, CLA \(isFinal ? "0x00 (final)" : "0x10 (more)")")
 
+            // An RSA-2048 signature response is ~264 bytes, past what an Le of 256
+            // returns. Ask for enough that the stack keeps walking GET RESPONSE
+            // until the whole 7C template has arrived.
             let (response, sw1, sw2) = try await send(
                 cla: isFinal ? 0x00 : 0x10,
                 ins: 0x87, p1: algorithm.rawValue, p2: 0x9E,
                 data: chunk,
-                le: isFinal ? 256 : nil
+                le: isFinal ? 1024 : nil
             )
             guard sw1 == 0x90, sw2 == 0x00 else {
                 throw ProbeError(String(format: "GENERAL AUTHENTICATE failed on chunk %d: SW %02X%02X", chunkIndex, sw1, sw2))

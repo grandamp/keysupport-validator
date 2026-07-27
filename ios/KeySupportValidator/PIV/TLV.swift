@@ -95,4 +95,19 @@ enum TLV {
     static func optionalValue(ofTag tag: UInt8, in bytes: [UInt8]) -> [UInt8]? {
         try? value(ofTag: tag, in: bytes)
     }
+
+    /// Total encoded size (tag + length field + value) declared by the header at
+    /// the front of `bytes`, or nil if too few bytes have arrived to tell.
+    ///
+    /// Used to detect a short read. Smart card stacks that transparently walk
+    /// `61 XX` GET RESPONSE chains still tend to stop at whatever `Le` the caller
+    /// asked for, returning `90 00` with a truncated buffer and no error. Comparing
+    /// the declared length against what actually arrived is the only reliable way
+    /// to notice — measured against a YubiKey, a 793-byte certificate object came
+    /// back as exactly 256 bytes with a success status word.
+    static func declaredTotalLength(_ bytes: [UInt8]) -> Int? {
+        guard bytes.count >= 2 else { return nil }
+        guard let (value, width) = try? readLength(bytes, at: 1) else { return nil }
+        return 1 + width + value
+    }
 }

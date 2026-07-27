@@ -82,6 +82,37 @@ let bare = try! TLV.encode(tag: 0x53, value: try! TLV.encode(tag: 0x70, value: c
 check("extracts 0x70 with no sibling",
       try TLV.value(ofTag: 0x70, in: try TLV.value(ofTag: 0x53, in: bare)) == certPayload)
 
+// MARK: - Short-read detection
+//
+// Regression cover for a defect found against a YubiKey: a GET DATA asking for
+// Le=256 returned exactly 256 bytes with SW 90 00 for an object that declares
+// 793. The status word reports success, so the only signal is the TLV header.
+
+print("Short-read detection")
+
+check("declared length of a complete object equals its size",
+      TLV.declaredTotalLength(wrapper) == wrapper.count)
+
+// Truncate to 256 bytes, exactly as the card stack did.
+let truncated = Array(wrapper.prefix(256))
+check("truncated buffer still reports the full declared length",
+      TLV.declaredTotalLength(truncated) == wrapper.count)
+check("truncation is detectable (declared > received)",
+      (TLV.declaredTotalLength(truncated) ?? 0) > truncated.count)
+check("parsing a truncated buffer throws rather than silently succeeding",
+      (try? TLV.value(ofTag: 0x53, in: truncated)) == nil)
+
+// The exact header seen on the wire: 53 82 03 15 -> 4 header bytes + 789 = 793.
+check("real-world header 53 82 03 15 declares 793",
+      TLV.declaredTotalLength([0x53, 0x82, 0x03, 0x15]) == 793)
+// And the ECC case: 53 82 01 7F -> 4 + 383 = 387.
+check("real-world header 53 82 01 7F declares 387",
+      TLV.declaredTotalLength([0x53, 0x82, 0x01, 0x7F]) == 387)
+
+check("single-byte buffer is undecidable", TLV.declaredTotalLength([0x53]) == nil)
+check("short-form header measured correctly",
+      TLV.declaredTotalLength([0x53, 0x05, 1, 2, 3, 4, 5]) == 7)
+
 // MARK: - The GENERAL AUTHENTICATE template (the real payload shape)
 
 print("GENERAL AUTHENTICATE 0x7C template")

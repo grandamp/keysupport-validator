@@ -20,6 +20,12 @@ struct PoPChallenge {
     let nonce: Data
     let verificationAlgorithm: SecKeyAlgorithm
     let publicKey: SecKey
+    /// `Le` for the final GENERAL AUTHENTICATE. The signed response is larger
+    /// than the 256 bytes an `Le` of 0x00 asks for — an RSA-2048 answer runs
+    /// about 264 bytes inside its 0x7C template — and a stack that stops at the
+    /// requested length hands back a truncated buffer with SW 90 00 rather than
+    /// an error. Observed on a YubiKey over CCID.
+    let expectedResponseLength: Int
 }
 
 enum PIVCryptoError: Error, LocalizedError {
@@ -113,7 +119,9 @@ enum PIVCrypto {
                 challengeBlock: Data(block),
                 nonce: nonce,
                 verificationAlgorithm: .rsaSignatureMessagePKCS1v15SHA256,
-                publicKey: publicKey
+                publicKey: publicKey,
+                // Signature is one modulus wide, plus the 0x7C/0x82 TLV framing.
+                expectedResponseLength: SecKeyGetBlockSize(publicKey) + 16
             )
         }
 
@@ -126,7 +134,9 @@ enum PIVCrypto {
                     challengeBlock: Data(SHA256.hash(data: nonce)),
                     nonce: nonce,
                     verificationAlgorithm: .ecdsaSignatureMessageX962SHA256,
-                    publicKey: publicKey
+                    publicKey: publicKey,
+                    // X9.62 DER {r,s} for P-256 is ~72 bytes; 128 is ample.
+                    expectedResponseLength: 128
                 )
             } else if keyBits <= 384 {
                 return PoPChallenge(
@@ -134,7 +144,9 @@ enum PIVCrypto {
                     challengeBlock: Data(SHA384.hash(data: nonce)),
                     nonce: nonce,
                     verificationAlgorithm: .ecdsaSignatureMessageX962SHA384,
-                    publicKey: publicKey
+                    publicKey: publicKey,
+                    // X9.62 DER {r,s} for P-384 is ~104 bytes; 160 is ample.
+                    expectedResponseLength: 160
                 )
             }
             throw PIVCryptoError.unsupportedKey(type: "ECC", bits: keyBits)

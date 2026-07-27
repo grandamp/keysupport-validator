@@ -166,6 +166,21 @@ private extension PIVReader {
             throw PIVReaderError.certificateReadFailed(sw1: sw1, sw2: sw2)
         }
 
+        // A certificate object is far larger than the 256 bytes an Le of 0x00 asks
+        // for. Stacks that transparently follow `61 XX` chains still stop at the
+        // requested length and report success, so a short buffer arrives with
+        // SW 90 00 and no error. Verified on a YubiKey over CCID: a 793-byte object
+        // came back as exactly 256 bytes. Re-read with the length the object itself
+        // declares. Asking for more than 256 requests an extended Le, which is why
+        // this is done only when the first read proves it is necessary.
+        if let declared = TLV.declaredTotalLength([UInt8](payload)), payload.count < declared {
+            let (full, fullSW1, fullSW2) = try await send(getData(expecting: declared), to: tag)
+            guard fullSW1 == 0x90, fullSW2 == 0x00 else {
+                throw PIVReaderError.certificateReadFailed(sw1: fullSW1, sw2: fullSW2)
+            }
+            payload = full
+        }
+
         let wrapper = try TLV.value(ofTag: 0x53, in: [UInt8](payload))
         let certificateBytes = Data(try TLV.value(ofTag: 0x70, in: wrapper))
 
@@ -187,7 +202,12 @@ private extension PIVReader {
         template.append(contentsOf: [0x82, 0x00])
         let payload = try TLV.encode(tag: 0x7C, value: template)
 
-        let response = try await sendGeneralAuthenticate(payload, algorithm: challenge.algorithm, to: tag)
+        let response = try await sendGeneralAuthenticate(
+            payload,
+            algorithm: challenge.algorithm,
+            expectedResponseLength: challenge.expectedResponseLength,
+            to: tag
+        )
         let inner = try TLV.value(ofTag: 0x7C, in: [UInt8](response))
         let signature = try TLV.value(ofTag: 0x82, in: inner)
 
@@ -202,7 +222,12 @@ private extension PIVReader {
     /// so we always chain rather than gamble on extended-length support. Only RSA
     /// actually overflows a short APDU — an RSA-2048 template runs ~266 bytes,
     /// while a P-256 template is ~38 and goes out in a single command.
-    func sendGeneralAuthenticate(_ payload: [UInt8], algorithm: PIVAlgorithm, to tag: NFCISO7816Tag) async throws -> Data {
+    func sendGeneralAuthenticate(
+        _ payload: [UInt8],
+        algorithm: PIVAlgorithm,
+        expectedResponseLength: Int,
+        to tag: NFCISO7816Tag
+    ) async throws -> Data {
         let chunkSize = 250
         var offset = 0
 
@@ -218,7 +243,8 @@ private extension PIVReader {
                 p1Parameter: algorithm.rawValue,
                 p2Parameter: 0x9E,
                 data: Data(chunk),
-                expectedResponseLength: isFinal ? 256 : -1
+                // Sized from the key rather than left at 256 — see PoPChallenge.
+                expectedResponseLength: isFinal ? expectedResponseLength : -1
             )
 
             let (data, sw1, sw2) = try await send(apdu, to: tag)
