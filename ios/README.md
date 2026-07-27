@@ -48,6 +48,7 @@ requested target"*.
 **Verified end to end over NFC on a real card**, read on an iPhone 13:
 
 - 1652-byte certificate object retrieved across six GET RESPONSE rounds
+- validity dates read straight out of the DER, since iOS exposes no API for them
 - gzip decompressed on device — this card stores its certificate compressed
 - X.509 parsed, RSA-2048 key detected
 - Proof of Possession chained 250 + 16 and **verified**
@@ -65,11 +66,14 @@ which is the assumption the entire NFC-only design rests on.
 - **Revoked and expired credentials.** Only the valid path has run against real
   Federal PKI. The failure branches are covered by unit tests and by a
   self-signed certificate that VSS correctly rejects.
-- **A card that returns no certificate path.** Observed once: VSS answered
-  SUCCESS but the success screen showed no Certificate Path card, meaning
-  `x509CertificatePath` came back absent or empty. Worth confirming whether that
-  field is optional for this policy or whether the response shape differs from
-  what `VSSResponse` decodes.
+**VSS returns no certificate path for at least some valid credentials.**
+Observed consistently across two independent scans of the same production card:
+`validationResult.result` is SUCCESS while `x509CertificatePath` is absent or
+empty. The Certificate Path card and the "Issued By" detail row both derive from
+it, so both are simply omitted. That is handled gracefully, but it means the
+trust chain is not always available to show — worth confirming with the service
+owner whether the field is optional for this validation policy, or whether the
+response shape differs from what `VSSResponse` decodes.
 
 ### The short-read defect, and why it matters for the NFC port
 
