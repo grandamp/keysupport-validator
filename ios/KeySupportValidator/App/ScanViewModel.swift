@@ -22,10 +22,60 @@ enum ScanState: Equatable {
 @MainActor
 final class ScanViewModel: ObservableObject {
 
-    @Published private(set) var state: ScanState = PIVReader.isAvailable ? .idle : .unsupported
+    @Published private(set) var state: ScanState
 
     private let reader = PIVReader()
     private let vss = VSSClient()
+
+    init() {
+        #if DEBUG
+        // Every interesting screen — success, revoked, expired, PoP failure —
+        // is only reachable by tapping a real card to a real iPhone. That makes
+        // the UI impossible to review on a simulator, so DEBUG builds allow a
+        // starting state to be forced:
+        //
+        //   SIMCTL_CHILD_KSV_PREVIEW_STATE=success \
+        //     xcrun simctl launch <device> net.keysupport.cardread
+        //
+        // Never compiled into Release.
+        if let forced = Self.previewState(named: ProcessInfo.processInfo.environment["KSV_PREVIEW_STATE"]) {
+            state = forced
+            return
+        }
+        #endif
+        state = PIVReader.isAvailable ? .idle : .unsupported
+    }
+
+    #if DEBUG
+    static func previewState(named name: String?) -> ScanState? {
+        switch name?.lowercased() {
+        case "idle":        return .idle
+        case "unsupported": return .unsupported
+        case "reading":     return .readingCertificate
+        case "verifying":   return .verifyingCard
+        case "validating":  return .validatingNetwork
+        case "success":
+            return .success(
+                subject: "CN=EXAMPLE.CARDHOLDER.1234567890, OU=Example Organization, C=US",
+                path: [
+                    "CN=Federal Common Policy CA G2, OU=FPKI, O=Example Organization, C=US",
+                    "CN=Agency Issuing CA G3, OU=FPKI, O=Example Organization, C=US",
+                    "CN=EXAMPLE.CARDHOLDER.1234567890, OU=Example Organization, C=US"
+                ]
+            )
+        case "revoked":
+            return .failure(title: "Revoked", message: "Credential Validation Failed: certificate has been revoked")
+        case "expired":
+            return .failure(title: "Expired", message: "Credential Validation Failed: NotAfter validation failed")
+        case "popfailed":
+            return .failure(
+                title: "PoP Failed",
+                message: "Proof of Possession signature validation failed. This card does not hold the private key matching its own certificate."
+            )
+        default: return nil
+        }
+    }
+    #endif
 
     var isBusy: Bool {
         switch state {

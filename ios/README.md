@@ -30,22 +30,28 @@ JSON decoding, and the failure path all work. A self-signed test certificate
 is correctly rejected with *"unable to find valid certification path to
 requested target"*.
 
-**Verified statically:**
+**Verified as a built app:**
 
+- Builds clean for the iOS Simulator in both Debug and Release
+  (`** BUILD SUCCEEDED **`, Xcode 26.6) — a full compile, link and bundle, not
+  just a type-check.
+- Runs on the simulator. The `.unsupported` state renders correctly with the
+  Scan button disabled, which is right: `NFCTagReaderSession.readingAvailable`
+  is false there. The success and failure screens were inspected via the DEBUG
+  preview hook below and match the Android palette.
 - Type-checks clean against the iOS 26.5 SDK targeting iOS 17, zero errors and
   zero warnings, under both Swift 5 and `-swift-version 6` strict concurrency.
   The latter matters: the CoreNFC delegate plus `CheckedContinuation` bridge in
   `PIVReader` is exactly the pattern strict concurrency usually rejects.
 - 58 assertions over the platform-independent logic — `./Tests/run-tests.sh`.
 
-**Not verified — still needs an iPhone:**
+**Not verified — still needs a paid membership and an iPhone:**
 
-- **The CoreNFC transport itself.** Everything above it is proven, but
-  `NFCTagReaderSession` has no macOS equivalent and cannot be exercised off
-  device. See the short-read note below — that class of defect is exactly what
-  is still lurking here.
-- **The SwiftUI layer.** No Xcode project is committed, so a full app build has
-  not been run.
+- **The CoreNFC transport itself.** Everything above and below it is proven, but
+  `NFCTagReaderSession` has no macOS equivalent, does not work on the simulator,
+  and cannot be provisioned without a paid Apple Developer Program membership.
+  See the short-read note below — that class of defect is exactly what is still
+  lurking here.
 - **The VSS SUCCESS path**, which needs a certificate chaining to a real Federal
   PKI trust anchor. Note this path is already proven by the shipping Android app
   against the same endpoint and policy OID.
@@ -84,40 +90,65 @@ real iPhone, this is the first thing to look at.
 
 ---
 
-## Setting up the Xcode project
+## Building
 
-There is deliberately no `.xcodeproj` in the repo. A hand-written `project.pbxproj`
-is long, opaque, and easy to get subtly wrong; Xcode's own template takes about a
-minute and gives you something guaranteed valid. Steps:
+`KeySupportValidator.xcodeproj` is committed — just open it. It is generated from
+`project.yml` by [XcodeGen](https://github.com/yonaskolb/XcodeGen); regenerate
+after adding files rather than editing the pbxproj by hand:
 
-1. **File → New → Project → iOS → App.**
-   Product Name `KeySupportValidator`, Interface **SwiftUI**, Language **Swift**.
-   Set the minimum deployment target to **iOS 17.0**.
+```
+brew install xcodegen
+cd ios && xcodegen generate
+```
 
-2. **Delete** the generated `ContentView.swift` and `KeySupportValidatorApp.swift`,
-   then drag in the `KeySupportValidator/App`, `KeySupportValidator/PIV`, and
-   `KeySupportValidator/Network` folders from this directory. Choose
-   *Create groups* and make sure the app target is checked.
+Simulator build, no signing required:
 
-3. **Signing & Capabilities → + Capability → Near Field Communication Tag Reading.**
-   This writes `com.apple.developer.nfc.readersession.formats = ["TAG"]` into your
-   entitlements file. `Resources/KeySupportValidator.entitlements` shows the
-   expected result. **This requires a paid Apple Developer Program membership** —
-   a free Apple ID cannot provision the NFC entitlement, so there is no
-   zero-cost path here even for running on your own phone.
+```
+xcodebuild -project ios/KeySupportValidator.xcodeproj -scheme KeySupportValidator \
+  -sdk iphonesimulator -destination 'platform=iOS Simulator,name=iPhone 17' build
+```
 
-4. **Merge `Resources/Info.plist` into your target's Info.plist.** Two keys:
+### Running on a device
 
-   - `NFCReaderUsageDescription` — the permission prompt string.
-   - `com.apple.developer.nfc.readersession.iso7816.select-identifiers` —
-     an array containing `A000000308000010000100`.
+Set your team in Xcode under Signing & Capabilities (`project.yml` deliberately
+leaves `DEVELOPMENT_TEAM` unset), then add **+ Capability → Near Field
+Communication Tag Reading**. That writes the entitlement already shown in
+`Resources/KeySupportValidator.entitlements`.
 
-   The AID list is not advisory. iOS filters tags against it before your code
-   ever runs; if the AID is missing, the card is simply never surfaced and the
-   session times out with nothing useful to debug. **If a scan does nothing at
-   all, check this first.**
+**This requires a paid Apple Developer Program membership.** A free personal team
+cannot provision the NFC entitlement — its profiles are 7-day and carry no NFC
+entitlement at all — so there is no zero-cost path onto a device, even your own.
+Signing will fail with a capability error until the membership is active.
 
-5. Build to a **physical iPhone 7 or later**. There is no simulator path.
+The app needs a physical **iPhone 7 or later**; the simulator has no NFC.
+
+### Info.plist
+
+`Resources/Info.plist` is a complete app plist. The two keys that matter:
+
+- `NFCReaderUsageDescription` — the permission prompt string.
+- `com.apple.developer.nfc.readersession.iso7816.select-identifiers` —
+  an array containing `A000000308000010000100`.
+
+The AID list is not advisory. iOS filters tags against it before your code ever
+runs; if the AID is missing, the card is never surfaced and the session times out
+with nothing useful to debug. **If a scan does nothing at all, check this first.**
+
+### Inspecting UI states without a card
+
+Every interesting screen normally requires tapping a real card to a real iPhone.
+DEBUG builds accept a forced starting state so the UI can be reviewed on a
+simulator:
+
+```
+xcrun simctl install booted <path>/KeySupportValidator.app
+SIMCTL_CHILD_KSV_PREVIEW_STATE=success \
+  xcrun simctl launch booted net.keysupport.cardread
+```
+
+Values: `idle`, `unsupported`, `reading`, `verifying`, `validating`, `success`,
+`revoked`, `expired`, `popfailed`. The hook is `#if DEBUG` only and is absent
+from Release binaries.
 
 ---
 
