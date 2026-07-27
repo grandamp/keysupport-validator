@@ -2,6 +2,42 @@ import Foundation
 import CoreNFC
 import Security
 
+/// Traces the APDU exchange to stdout. A card session cannot be stepped through
+/// in a debugger — the tag is gone in under a second — so a transcript is the
+/// only practical way to see what a real card actually did. Capture it with:
+///
+///     xcrun devicectl device process launch --device <id> --console \
+///       net.keysupport.cardread
+///
+/// DEBUG only; compiled out of Release.
+@inline(__always)
+func pivTrace(_ message: @autoclosure () -> String) {
+    #if DEBUG
+    print("[PIV] \(message())")
+    #endif
+}
+
+/// ISO 7816-4 sorts status words into success (`90 00`), "more data pending"
+/// (`61 XX`), *warnings* (`62 XX` / `63 XX`) and errors (`64 XX` upward).
+///
+/// Warnings still carry valid response data. Driving `Le = 0x00` plus the
+/// GET RESPONSE chain should avoid them entirely, but a card that pads or
+/// accounts differently can still answer `62 82` ("end of file or record reached
+/// before reading Ne bytes") with a perfectly good signature attached. Rejecting
+/// that would throw away a correct answer, so warnings are accepted.
+func pivStatusIsSuccess(_ sw1: UInt8, _ sw2: UInt8) -> Bool {
+    if sw1 == 0x90 && sw2 == 0x00 { return true }
+    return sw1 == 0x62 || sw1 == 0x63
+}
+
+func pivHex(_ data: Data, limit: Int = 48) -> String {
+    let bytes = [UInt8](data)
+    let shown = bytes.prefix(limit).map { String(format: "%02X", $0) }.joined(separator: " ")
+    return bytes.count > limit
+        ? "\(shown) … (\(bytes.count) bytes)"
+        : "\(shown) (\(bytes.count) bytes)"
+}
+
 struct PIVScanResult {
     let certificateDER: Data
     let certificate: SecCertificate
@@ -18,6 +54,7 @@ enum PIVReaderError: Error, LocalizedError {
     case notAnISO7816Tag
     case appletSelectFailed(sw1: UInt8, sw2: UInt8)
     case certificateReadFailed(sw1: UInt8, sw2: UInt8)
+    case emptyCertificateResponse
     case generalAuthenticateFailed(sw1: UInt8, sw2: UInt8)
     case sessionInvalidated(String)
     case userCancelled
@@ -32,6 +69,8 @@ enum PIVReaderError: Error, LocalizedError {
             return "Could not select the PIV applet (\(Self.statusWord(sw1, sw2)))."
         case .certificateReadFailed(let sw1, let sw2):
             return "Could not read the Card Authentication certificate (\(Self.statusWord(sw1, sw2)))."
+        case .emptyCertificateResponse:
+            return "The card reported success but returned no certificate data."
         case .generalAuthenticateFailed(let sw1, let sw2):
             return "The card refused the authentication challenge (\(Self.statusWord(sw1, sw2)))."
         case .sessionInvalidated(let reason):
@@ -132,7 +171,7 @@ private extension PIVReader {
             expectedResponseLength: 256
         )
         let (_, sw1, sw2) = try await send(apdu, to: tag)
-        guard sw1 == 0x90, sw2 == 0x00 else {
+        guard pivStatusIsSuccess(sw1, sw2) else {
             throw PIVReaderError.appletSelectFailed(sw1: sw1, sw2: sw2)
         }
     }
@@ -155,15 +194,26 @@ private extension PIVReader {
             )
         }
 
+        pivTrace("GET DATA 5FC101, first attempt with Le = 256")
         var (payload, sw1, sw2) = try await send(getData(expecting: 256), to: tag)
 
-        // Some cards reject the Le byte outright. Retry with no expected length,
-        // mirroring the Android reader's 6982 fallback.
-        if sw1 != 0x90 || sw2 != 0x00 {
-            (payload, sw1, sw2) = try await send(getData(expecting: -1), to: tag)
+        // Some cards reject the Le byte outright. Retry asking for the maximum a
+        // short APDU can express.
+        //
+        // This deliberately does NOT retry with expectedResponseLength: -1. That
+        // encodes a Case 3 APDU — command data, no response expected — so the card
+        // returns SW 90 00 and zero bytes. The read then "succeeds" with an empty
+        // buffer and fails much later with a confusing TLV error.
+        if !pivStatusIsSuccess(sw1, sw2) {
+            pivTrace("first attempt returned a non-success SW, retrying")
+            (payload, sw1, sw2) = try await send(getData(expecting: 256), to: tag)
         }
-        guard sw1 == 0x90, sw2 == 0x00 else {
+        guard pivStatusIsSuccess(sw1, sw2) else {
             throw PIVReaderError.certificateReadFailed(sw1: sw1, sw2: sw2)
+        }
+        guard !payload.isEmpty else {
+            pivTrace("SW 90 00 but zero bytes returned")
+            throw PIVReaderError.emptyCertificateResponse
         }
 
         // A certificate object is far larger than the 256 bytes an Le of 0x00 asks
@@ -174,8 +224,9 @@ private extension PIVReader {
         // declares. Asking for more than 256 requests an extended Le, which is why
         // this is done only when the first read proves it is necessary.
         if let declared = TLV.declaredTotalLength([UInt8](payload)), payload.count < declared {
+            pivTrace("short read: got \(payload.count) bytes, object declares \(declared) — re-reading")
             let (full, fullSW1, fullSW2) = try await send(getData(expecting: declared), to: tag)
-            guard fullSW1 == 0x90, fullSW2 == 0x00 else {
+            guard pivStatusIsSuccess(fullSW1, fullSW2) else {
                 throw PIVReaderError.certificateReadFailed(sw1: fullSW1, sw2: fullSW2)
             }
             payload = full
@@ -202,12 +253,7 @@ private extension PIVReader {
         template.append(contentsOf: [0x82, 0x00])
         let payload = try TLV.encode(tag: 0x7C, value: template)
 
-        let response = try await sendGeneralAuthenticate(
-            payload,
-            algorithm: challenge.algorithm,
-            expectedResponseLength: challenge.expectedResponseLength,
-            to: tag
-        )
+        let response = try await sendGeneralAuthenticate(payload, algorithm: challenge.algorithm, to: tag)
         let inner = try TLV.value(ofTag: 0x7C, in: [UInt8](response))
         let signature = try TLV.value(ofTag: 0x82, in: inner)
 
@@ -222,12 +268,7 @@ private extension PIVReader {
     /// so we always chain rather than gamble on extended-length support. Only RSA
     /// actually overflows a short APDU — an RSA-2048 template runs ~266 bytes,
     /// while a P-256 template is ~38 and goes out in a single command.
-    func sendGeneralAuthenticate(
-        _ payload: [UInt8],
-        algorithm: PIVAlgorithm,
-        expectedResponseLength: Int,
-        to tag: NFCISO7816Tag
-    ) async throws -> Data {
+    func sendGeneralAuthenticate(_ payload: [UInt8], algorithm: PIVAlgorithm, to tag: NFCISO7816Tag) async throws -> Data {
         let chunkSize = 250
         var offset = 0
 
@@ -243,12 +284,18 @@ private extension PIVReader {
                 p1Parameter: algorithm.rawValue,
                 p2Parameter: 0x9E,
                 data: Data(chunk),
-                // Sized from the key rather than left at 256 — see PoPChallenge.
-                expectedResponseLength: isFinal ? expectedResponseLength : -1
+                // 256 is how CoreNFC encodes Le = 0x00: "return whatever length
+                // you have". Do not compute an exact length here. PIV cards vary
+                // in ASN.1 length encoding, and the value changes with every key
+                // type, so any calculation is brittle and overshooting earns a
+                // 62 82 warning. Asking for everything and letting the GET RESPONSE
+                // chain in send() collect the remainder works for every algorithm:
+                // RSA-2048 comes back as 256 + 8 more, ECC P-256 fits in one go.
+                expectedResponseLength: isFinal ? 256 : -1
             )
 
             let (data, sw1, sw2) = try await send(apdu, to: tag)
-            guard sw1 == 0x90, sw2 == 0x00 else {
+            guard pivStatusIsSuccess(sw1, sw2) else {
                 throw PIVReaderError.generalAuthenticateFailed(sw1: sw1, sw2: sw2)
             }
             if isFinal { return data }
@@ -256,22 +303,73 @@ private extension PIVReader {
         }
     }
 
-    /// CoreNFC walks 61 XX / GET RESPONSE chains internally, so unlike the Android
-    /// reader there is no loop for those. 6C XX is *not* handled for us — the card
-    /// is reporting the exact Le it wants, so reissue once with that length.
+    /// Sends one APDU and returns the *complete* response, driving both
+    /// continuation mechanisms ISO 7816 defines.
+    ///
+    /// CoreNFC does **not** walk `61 XX` GET RESPONSE chains, despite documentation
+    /// and community lore claiming otherwise. Measured against an production PIV
+    /// card over NFC: a GET DATA for a 1652-byte certificate object returned 256
+    /// bytes with `SW 61 00` and stopped there. Nothing surfaces the truncation —
+    /// the caller just receives a short buffer — so the chain has to be driven
+    /// explicitly, exactly as the Android reader does in `PivReader.transceive`.
     func send(_ apdu: NFCISO7816APDU, to tag: NFCISO7816Tag) async throws -> (Data, UInt8, UInt8) {
-        let (data, sw1, sw2) = try await tag.sendCommand(apdu: apdu)
-        guard sw1 == 0x6C else { return (data, sw1, sw2) }
+        pivTrace(String(format: "-> CLA %02X INS %02X P1 %02X P2 %02X Lc %d",
+                        Int(apdu.instructionClass), Int(apdu.instructionCode),
+                        Int(apdu.p1Parameter), Int(apdu.p2Parameter),
+                        apdu.data?.count ?? 0))
 
-        let retry = NFCISO7816APDU(
-            instructionClass: apdu.instructionClass,
-            instructionCode: apdu.instructionCode,
-            p1Parameter: apdu.p1Parameter,
-            p2Parameter: apdu.p2Parameter,
-            data: apdu.data ?? Data(),
-            expectedResponseLength: Int(sw2)
-        )
-        return try await tag.sendCommand(apdu: retry)
+        var (data, sw1, sw2) = try await tag.sendCommand(apdu: apdu)
+        pivTrace(String(format: "<- SW %02X%02X  %@", Int(sw1), Int(sw2), pivHex(data)))
+
+        // 6C XX — wrong Le. The card is naming the exact length it wants, so
+        // reissue the original command once with that length.
+        if sw1 == 0x6C {
+            pivTrace("   6C XX — reissuing with Le = \(Int(sw2))")
+            let retry = NFCISO7816APDU(
+                instructionClass: apdu.instructionClass,
+                instructionCode: apdu.instructionCode,
+                p1Parameter: apdu.p1Parameter,
+                p2Parameter: apdu.p2Parameter,
+                data: apdu.data ?? Data(),
+                expectedResponseLength: Int(sw2)
+            )
+            (data, sw1, sw2) = try await tag.sendCommand(apdu: retry)
+            pivTrace(String(format: "<- SW %02X%02X  %@", Int(sw1), Int(sw2), pivHex(data)))
+        }
+
+        // 61 XX — more data pending. SW2 is how many bytes remain, where 0 means
+        // 256. Keep issuing GET RESPONSE until the card answers with a final SW.
+        var accumulated = data
+        var rounds = 0
+        while sw1 == 0x61 {
+            rounds += 1
+            // A 1652-byte object needs ~7 rounds. This only bounds a malfunctioning
+            // card that never stops reporting more data.
+            guard rounds <= 64 else {
+                pivTrace("   too many GET RESPONSE rounds — giving up")
+                break
+            }
+
+            let remaining = sw2 == 0x00 ? 256 : Int(sw2)
+            pivTrace("   61 XX — GET RESPONSE for \(remaining) more (round \(rounds))")
+
+            let getResponse = NFCISO7816APDU(
+                instructionClass: 0x00,
+                instructionCode: 0xC0,
+                p1Parameter: 0x00,
+                p2Parameter: 0x00,
+                data: Data(),
+                expectedResponseLength: remaining
+            )
+            let (more, nextSW1, nextSW2) = try await tag.sendCommand(apdu: getResponse)
+            accumulated.append(more)
+            sw1 = nextSW1
+            sw2 = nextSW2
+            pivTrace(String(format: "<- SW %02X%02X  +%d bytes (total %d)",
+                            Int(sw1), Int(sw2), more.count, accumulated.count))
+        }
+
+        return (accumulated, sw1, sw2)
     }
 }
 

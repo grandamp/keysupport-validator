@@ -3,7 +3,9 @@ import SwiftUI
 struct ContentView: View {
 
     @StateObject private var model = ScanViewModel()
-    @State private var pathExpanded = false
+    // Expanded by default: the trust chain is the substance of a successful
+    // validation, not an optional detail to go hunting for.
+    @State private var pathExpanded = true
 
     var body: some View {
         ZStack {
@@ -20,7 +22,7 @@ struct ContentView: View {
         .animation(.easeInOut(duration: 0.2), value: model.state)
         .onChange(of: model.state) { _, newState in
             guard newState.isTerminal else { return }
-            pathExpanded = false
+            pathExpanded = true
             let generator = UINotificationFeedbackGenerator()
             if case .success = newState {
                 generator.notificationOccurred(.success)
@@ -57,7 +59,12 @@ struct ContentView: View {
                 .padding(.top, 8)
 
         case .success(let subject, let path):
-            headline("Proof of Possession Success!")
+            // The green screen means two independent checks passed, and a relying
+            // party cares more about the second. Crediting only Proof of Possession
+            // (as the Android app does) hides the fact that VSS was consulted at all.
+            headline("Credential Valid")
+            checkLine("Proof of Possession verified")
+            checkLine("Validated against KeySupport VSS")
             body(subject)
             if !path.isEmpty {
                 certificatePathCard(path)
@@ -115,6 +122,17 @@ struct ContentView: View {
     }
 
     // MARK: - Building blocks
+
+    /// A single confirmed check on the success screen.
+    private func checkLine(_ text: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "checkmark.seal.fill")
+            Text(text)
+        }
+        .font(.subheadline.weight(.medium))
+        .foregroundStyle(palette.foreground)
+        .padding(.top, 6)
+    }
 
     private func headline(_ text: String) -> some View {
         Text(text)
