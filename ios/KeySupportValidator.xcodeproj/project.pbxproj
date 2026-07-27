@@ -11,6 +11,7 @@
 		3C853134B97C1ED5E34B4DF8 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C0D22C6A1659943A342AD63 /* ContentView.swift */; };
 		54D89A587CD3C8F1BF15A0BD /* KeySupportValidatorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95C8A9FDD55ACB3326F8B345 /* KeySupportValidatorApp.swift */; };
 		6819307F5F04BCA74DB28832 /* PIVCrypto.swift in Sources */ = {isa = PBXBuildFile; fileRef = 040D408E34DAC778F40DED39 /* PIVCrypto.swift */; };
+		852E74248EB1A34092F6D033 /* DistinguishedName.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D2A81E1467B38E7F6B70D3D /* DistinguishedName.swift */; };
 		99B9E63C3E3B5B0D86039926 /* PIVReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 906AC0B88D1226FDE4341D27 /* PIVReader.swift */; };
 		BAF934851B205E08A73BC6D8 /* VSSService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F025355CDD78B4D15756655 /* VSSService.swift */; };
 		D63ABFD84330C3BB958A981F /* Gzip.swift in Sources */ = {isa = PBXBuildFile; fileRef = E31F30EC95F3E7DC47D2FDCD /* Gzip.swift */; };
@@ -21,6 +22,7 @@
 		040D408E34DAC778F40DED39 /* PIVCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PIVCrypto.swift; sourceTree = "<group>"; };
 		1C550A0A938D65D38CD3510C /* TLV.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TLV.swift; sourceTree = "<group>"; };
 		6F025355CDD78B4D15756655 /* VSSService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VSSService.swift; sourceTree = "<group>"; };
+		8D2A81E1467B38E7F6B70D3D /* DistinguishedName.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DistinguishedName.swift; sourceTree = "<group>"; };
 		906AC0B88D1226FDE4341D27 /* PIVReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PIVReader.swift; sourceTree = "<group>"; };
 		95C8A9FDD55ACB3326F8B345 /* KeySupportValidatorApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeySupportValidatorApp.swift; sourceTree = "<group>"; };
 		9C0D22C6A1659943A342AD63 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -41,6 +43,7 @@
 		62337EA74F1AB4F4B36E02A8 /* PIV */ = {
 			isa = PBXGroup;
 			children = (
+				8D2A81E1467B38E7F6B70D3D /* DistinguishedName.swift */,
 				E31F30EC95F3E7DC47D2FDCD /* Gzip.swift */,
 				040D408E34DAC778F40DED39 /* PIVCrypto.swift */,
 				906AC0B88D1226FDE4341D27 /* PIVReader.swift */,
@@ -144,6 +147,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3C853134B97C1ED5E34B4DF8 /* ContentView.swift in Sources */,
+				852E74248EB1A34092F6D033 /* DistinguishedName.swift in Sources */,
 				D63ABFD84330C3BB958A981F /* Gzip.swift in Sources */,
 				54D89A587CD3C8F1BF15A0BD /* KeySupportValidatorApp.swift in Sources */,
 				6819307F5F04BCA74DB28832 /* PIVCrypto.swift in Sources */,

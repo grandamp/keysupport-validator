@@ -65,7 +65,7 @@ struct ContentView: View {
             headline("Credential Valid")
             checkLine("Proof of Possession verified")
             checkLine("Validated against KeySupport VSS")
-            body(subject)
+            subjectCard(subject)
             if !path.isEmpty {
                 certificatePathCard(path)
             }
@@ -91,6 +91,37 @@ struct ContentView: View {
         // Unlike Android's reader mode, iOS cannot poll for tags in the
         // background — every scan must be user-initiated and shows Apple's
         // own system sheet, so an explicit button is mandatory here.
+    }
+
+    /// Renders the subject as labelled rows. Falls back to the raw string if it
+    /// does not parse as a distinguished name — showing something unexpected
+    /// beats showing nothing.
+    @ViewBuilder
+    private func subjectCard(_ subject: String) -> some View {
+        let name = DistinguishedName(subject)
+
+        if name.isEmpty {
+            body(subject)
+        } else {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(name.fields) { field in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(field.label.uppercased())
+                            .font(.caption2.weight(.semibold))
+                            .opacity(0.7)
+                        Text(field.value)
+                            .font(.subheadline)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .foregroundStyle(palette.foreground)
+            .padding(16)
+            .frame(maxWidth: .infinity)
+            .background(Color(hex: 0xC8E6C9), in: RoundedRectangle(cornerRadius: 12))
+            .padding(.top, 16)
+        }
     }
 
     private func certificatePathCard(_ path: [String]) -> some View {

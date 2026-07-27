@@ -193,6 +193,39 @@ checkThrows("modulus too small for digest is rejected") {
     _ = try PIVCrypto.pkcs1v15Block(digestInfo: digestInfo, modulusSize: 32)
 }
 
+// MARK: - Distinguished name parsing
+
+print("Distinguished name parsing")
+
+// The shape VSS actually returned for a agency PIV card.
+let treasury = DistinguishedName(
+    "SERIALNUMBER=00000000000000, OU=Example Bureau, "
+    + "OU=Example Department, O=Example Organization, C=US"
+)
+check("parses 5 fields", treasury.fields.count == 5)
+check("SERIALNUMBER labelled Card Serial", treasury.fields[0].label == "Card Serial")
+check("serial value preserved", treasury.fields[0].value == "00000000000000")
+check("repeated OU both retained",
+      treasury.fields[1].value == "Example Bureau"
+      && treasury.fields[2].value == "Example Department")
+check("O labelled Organization", treasury.fields[3].label == "Organization")
+check("C value parsed", treasury.fields[4].value == "US")
+check("field order preserved", treasury.fields.map(\.label)
+      == ["Card Serial", "Organizational Unit", "Organizational Unit", "Organization", "Country"])
+
+// RFC 4514 escaping: a comma inside a value must not split the field.
+let escaped = DistinguishedName(#"CN=Acme\, Inc, C=US"#)
+check("escaped comma does not split", escaped.fields.count == 2)
+check("escaped comma unescaped in value", escaped.fields[0].value == "Acme, Inc")
+
+check("unknown attribute keeps its name",
+      DistinguishedName("FOO=bar").fields.first?.label == "FOO")
+check("lowercase attribute normalised",
+      DistinguishedName("cn=Jane").fields.first?.label == "Name")
+check("garbage yields no fields", DistinguishedName("not a dn at all").isEmpty)
+check("empty string yields no fields", DistinguishedName("").isEmpty)
+check("empty value skipped", DistinguishedName("CN=, O=Gov").fields.count == 1)
+
 // MARK: - Gzip
 
 print("Gzip decompression")

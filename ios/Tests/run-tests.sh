@@ -31,6 +31,7 @@ gzip -n -c "$WORK/fixture_noname" > "$WORK/fixture_noname.gz"   # FLG = 0x00
 echo "Compiling test harness…"
 swiftc -o "$WORK/testrunner" \
     "$PIV/TLV.swift" \
+    "$PIV/DistinguishedName.swift" \
     "$PIV/Gzip.swift" \
     "$PIV/PIVCrypto.swift" \
     "$WORK/main.swift"

@@ -55,8 +55,12 @@ final class ScanViewModel: ObservableObject {
         case "verifying":   return .verifyingCard
         case "validating":  return .validatingNetwork
         case "success":
+            // Shaped like a real Federal PIV subject so the layout is exercised
+            // honestly. The serial is fabricated — never commit a real one.
             return .success(
-                subject: "CN=EXAMPLE.CARDHOLDER.1234567890, OU=Example Organization, C=US",
+                subject: "SERIALNUMBER=0000000000000000000000000000000000000000000000000, "
+                       + "OU=Example Bureau, OU=Example Department, "
+                       + "O=Example Organization, C=US",
                 path: [
                     "CN=Federal Common Policy CA G2, OU=FPKI, O=Example Organization, C=US",
                     "CN=Agency Issuing CA G3, OU=FPKI, O=Example Organization, C=US",
