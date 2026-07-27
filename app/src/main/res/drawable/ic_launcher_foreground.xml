@@ -1,0 +1,48 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Card Base (White) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,30 h60 c4.4,0 8,3.6 8,8 v32 c0,4.4 -3.6,8 -8,8 h-60 c-4.4,0 -8,-3.6 -8,-8 v-32 c0,-4.4 3.6,-8 8,-8 z" />
+        
+    <!-- Smart Card Chip (Gold) -->
+    <path
+        android:fillColor="#FFD54F"
+        android:pathData="M28,46 h14 c1.1,0 2,0.9 2,2 v12 c0,1.1 -0.9,2 -2,2 h-14 c-1.1,0 -2,-0.9 -2,-2 v-12 c0,-1.1 0.9,-2 2,-2 z" />
+        
+    <!-- Chip Contact Lines -->
+    <path
+        android:strokeColor="#F57F17"
+        android:strokeWidth="1"
+        android:pathData="M26,50 h18 M26,54 h18 M26,58 h18 M35,46 v16" />
+        
+    <!-- Photo Box -->
+    <path
+        android:fillColor="#90CAF9"
+        android:pathData="M68,36 h16 v22 h-16 z" />
+        
+    <!-- Silhouette in Photo -->
+    <path
+        android:fillColor="#1565C0"
+        android:pathData="M76,38 c2.2,0 4,1.8 4,4 c0,2.2 -1.8,4 -4,4 c-2.2,0 -4,-1.8 -4,-4 c0,-2.2 1.8,-4 4,-4 z M68,58 c0,-5 3,-7 8,-7 c5,0 8,2 8,7 z" />
+        
+    <!-- Text Lines (Name, Info) -->
+    <path
+        android:fillColor="#37474F"
+        android:pathData="M48,38 h16 v2 h-16 z M48,43 h10 v2 h-10 z M68,62 h16 v2 h-16 z" />
+        
+    <!-- Agency Seal (Circle) -->
+    <path
+        android:fillColor="#CFD8DC"
+        android:pathData="M56,53 m-5,0 a5,5 0 1,1 10,0 a5,5 0 1,1 -10,0" />
+        
+    <!-- Agency Seal Inner Star/Detail -->
+    <path
+        android:fillColor="#90A4AE"
+        android:pathData="M56,50 l1,2 h2 l-1.5,1.5 l0.5,2 l-2,-1 l-2,1 l0.5,-2 l-1.5,-1.5 h2 z" />
+        
+</vector>
