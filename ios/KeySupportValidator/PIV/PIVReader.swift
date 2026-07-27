@@ -307,7 +307,7 @@ private extension PIVReader {
     /// continuation mechanisms ISO 7816 defines.
     ///
     /// CoreNFC does **not** walk `61 XX` GET RESPONSE chains, despite documentation
-    /// and community lore claiming otherwise. Measured against an production PIV
+    /// and community lore claiming otherwise. Measured against a production PIV
     /// card over NFC: a GET DATA for a 1652-byte certificate object returned 256
     /// bytes with `SW 61 00` and stopped there. Nothing surfaces the truncation —
     /// the caller just receives a short buffer — so the chain has to be driven

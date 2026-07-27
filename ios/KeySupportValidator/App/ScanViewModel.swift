@@ -55,16 +55,17 @@ final class ScanViewModel: ObservableObject {
         case "verifying":   return .verifyingCard
         case "validating":  return .validatingNetwork
         case "success":
-            // Shaped like a real Federal PIV subject so the layout is exercised
-            // honestly. The serial is fabricated — never commit a real one.
+            // Shaped like a PIV subject — repeated OUs, a long serial — so the
+            // layout is exercised realistically. Entirely fictional by design:
+            // no real cardholder or issuer detail belongs in a repository.
             return .success(
-                subject: "SERIALNUMBER=0000000000000000000000000000000000000000000000000, "
+                subject: "SERIALNUMBER=00000000000000000000000000000000, "
                        + "OU=Example Bureau, OU=Example Department, "
-                       + "O=Example Organization, C=US",
+                       + "O=Example Organization, C=ZZ",
                 path: [
-                    "CN=Federal Common Policy CA G2, OU=FPKI, O=Example Organization, C=US",
-                    "CN=Agency Issuing CA G3, OU=FPKI, O=Example Organization, C=US",
-                    "CN=EXAMPLE.CARDHOLDER.1234567890, OU=Example Organization, C=US"
+                    "CN=Example Root CA G2, OU=Example PKI, O=Example Organization, C=ZZ",
+                    "CN=Example Issuing CA G3, OU=Example PKI, O=Example Organization, C=ZZ",
+                    "CN=EXAMPLE.CARDHOLDER.1234567890, OU=Example Organization, C=ZZ"
                 ]
             )
         case "revoked":

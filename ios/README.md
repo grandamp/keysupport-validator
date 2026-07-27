@@ -45,8 +45,7 @@ requested target"*.
   `PIVReader` is exactly the pattern strict concurrency usually rejects.
 - 58 assertions over the platform-independent logic — `./Tests/run-tests.sh`.
 
-**Verified end to end over NFC on a real card.** a production PIV card
-(a federal agency) read on an iPhone 13:
+**Verified end to end over NFC on a real card**, read on an iPhone 13:
 
 - 1652-byte certificate object retrieved across six GET RESPONSE rounds
 - gzip decompressed on device — this card stores its certificate compressed
@@ -92,12 +91,14 @@ CryptoTokenKit:
 
 Both call sites are fixed. Certificate reads detect the short buffer via
 `TLV.declaredTotalLength` and re-read with the length the object itself
-declares; GENERAL AUTHENTICATE sizes its `Le` from the key. `Tests/run-tests.sh`
-carries regression cover for both.
+declares. GENERAL AUTHENTICATE no longer computes a length at all: it sends
+`Le = 0x00` and lets the chain deliver the remainder. `Tests/run-tests.sh`
+carries regression cover.
 
-**CoreNFC may well behave the same way**, which is why this is called out
-rather than buried. If a scan fails with "TLV data ended unexpectedly" on a
-real iPhone, this is the first thing to look at.
+**CoreNFC turned out to behave differently, and worse.** It does not walk the
+`61 XX` chain *at all* — the card answers `SW 6100` and CoreNFC simply hands
+back 256 bytes. Same silent truncation, different route. `PIVReader.send` now
+drives GET RESPONSE explicitly, which covers both stacks.
 
 ---
 
@@ -169,7 +170,7 @@ from Release binaries.
 |---|---|---|
 | Tag discovery | `enableReaderMode` polls invisibly in the background | User taps a button; Apple's system sheet is mandatory and cannot be bypassed |
 | Session lifetime | Unbounded | **~20s connected tag, 60s session — hard limits** |
-| `61 XX` chaining | Manual `GET RESPONSE` loop | Handled by CoreNFC |
+| `61 XX` chaining | Manual `GET RESPONSE` loop | **Also manual** — CoreNFC does *not* chain |
 | `6C XX` wrong-`Le` | Manual reissue | Still manual — CoreNFC does *not* do this |
 | Extended APDUs | `isoDep.isExtendedLengthApduSupported` | **No equivalent API exists** |
 | Cert parsing | `CertificateFactory` | `SecCertificateCreateWithData` + `SecCertificateCopyKey` |
@@ -259,7 +260,8 @@ Two things that will waste your time otherwise:
 
 ## What the first iPhone run answered
 
-Every question this section used to pose has been settled against a production PIV card on an iPhone 13. Recorded here because several answers
+Every question this section used to pose has been settled against a production
+PIV card on an iPhone 13. Recorded here because several answers
 contradict the documentation:
 
 - **Does CoreNFC walk `61 XX` GET RESPONSE chains? No.** This is the important

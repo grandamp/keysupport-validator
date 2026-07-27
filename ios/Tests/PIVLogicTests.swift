@@ -197,20 +197,22 @@ checkThrows("modulus too small for digest is rejected") {
 
 print("Distinguished name parsing")
 
-// The shape VSS actually returned for a agency PIV card.
-let treasury = DistinguishedName(
+// The shape a PIV subject takes: a long serial, then repeated OUs narrowing
+// from department to bureau. All values fictional — no real cardholder or
+// issuer detail belongs in a repository.
+let piv = DistinguishedName(
     "SERIALNUMBER=00000000000000, OU=Example Bureau, "
-    + "OU=Example Department, O=Example Organization, C=US"
+    + "OU=Example Department, O=Example Organization, C=ZZ"
 )
-check("parses 5 fields", treasury.fields.count == 5)
-check("SERIALNUMBER labelled Card Serial", treasury.fields[0].label == "Card Serial")
-check("serial value preserved", treasury.fields[0].value == "00000000000000")
+check("parses 5 fields", piv.fields.count == 5)
+check("SERIALNUMBER labelled Card Serial", piv.fields[0].label == "Card Serial")
+check("serial value preserved", piv.fields[0].value == "00000000000000")
 check("repeated OU both retained",
-      treasury.fields[1].value == "Example Bureau"
-      && treasury.fields[2].value == "Example Department")
-check("O labelled Organization", treasury.fields[3].label == "Organization")
-check("C value parsed", treasury.fields[4].value == "US")
-check("field order preserved", treasury.fields.map(\.label)
+      piv.fields[1].value == "Example Bureau"
+      && piv.fields[2].value == "Example Department")
+check("O labelled Organization", piv.fields[3].label == "Organization")
+check("C value parsed", piv.fields[4].value == "ZZ")
+check("field order preserved", piv.fields.map(\.label)
       == ["Card Serial", "Organizational Unit", "Organizational Unit", "Organization", "Country"])
 
 // RFC 4514 escaping: a comma inside a value must not split the field.

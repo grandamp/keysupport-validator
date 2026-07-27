@@ -4,8 +4,8 @@ import Foundation
 ///
 /// VSS returns the subject as a single string such as:
 ///
-///     SERIALNUMBER=00000000000000..., OU=Example Bureau,
-///     OU=Example Department, O=Example Organization, C=US
+///     SERIALNUMBER=00000000000000, OU=Example Bureau,
+///     OU=Example Department, O=Example Organization, C=ZZ
 ///
 /// Rendering that verbatim gives the reader a wall of X.500 syntax to decode.
 /// Splitting it into labelled rows costs nothing and makes the identity legible
