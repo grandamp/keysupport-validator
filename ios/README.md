@@ -45,21 +45,32 @@ requested target"*.
   `PIVReader` is exactly the pattern strict concurrency usually rejects.
 - 58 assertions over the platform-independent logic — `./Tests/run-tests.sh`.
 
-**Not verified — still needs a paid membership and an iPhone:**
+**Verified end to end over NFC on a real card.** a production PIV card
+(a federal agency) read on an iPhone 13:
 
-- **The CoreNFC transport itself.** Everything above and below it is proven, but
-  `NFCTagReaderSession` has no macOS equivalent, does not work on the simulator,
-  and cannot be provisioned without a paid Apple Developer Program membership.
-  See the short-read note below — that class of defect is exactly what is still
-  lurking here.
-- **The VSS SUCCESS path**, which needs a certificate chaining to a real Federal
-  PKI trust anchor. Note this path is already proven by the shipping Android app
-  against the same endpoint and policy OID.
-- **The gzip path against a real card.** The YubiKey stores certificates
-  uncompressed (CertInfo `0x00`), so only the unit-test fixtures cover it.
-- The RSA-3072 algorithm identifier (`0x05`) is carried over from a `// let's check`
-  comment in the Kotlin source. It matches SP 800-78-5, but confirm against your
-  card stock. RSA-2048 and the ECC identifiers are now hardware-confirmed.
+- 1652-byte certificate object retrieved across six GET RESPONSE rounds
+- gzip decompressed on device — this card stores its certificate compressed
+- X.509 parsed, RSA-2048 key detected
+- Proof of Possession chained 250 + 16 and **verified**
+- VSS returned **SUCCESS** against a real Federal PKI trust anchor
+
+The card is dual-interface and serves slot 9E over contactless without a PIN,
+which is the assumption the entire NFC-only design rests on.
+
+**Still not verified:**
+
+- **RSA-3072 (`0x05`)**, carried over from a `// let's check` comment in the
+  Kotlin source. It matches SP 800-78-5 but no card on hand uses it.
+  RSA-2048 (`0x07`) and ECC P-256 (`0x11`) are hardware-confirmed.
+- **ECC P-384 (`0x14`)** — correct by construction, never exercised by a card.
+- **Revoked and expired credentials.** Only the valid path has run against real
+  Federal PKI. The failure branches are covered by unit tests and by a
+  self-signed certificate that VSS correctly rejects.
+- **A card that returns no certificate path.** Observed once: VSS answered
+  SUCCESS but the success screen showed no Certificate Path card, meaning
+  `x509CertificatePath` came back absent or empty. Worth confirming whether that
+  field is optional for this policy or whether the response shape differs from
+  what `VSSResponse` decodes.
 
 ### The short-read defect, and why it matters for the NFC port
 
@@ -246,20 +257,29 @@ Two things that will waste your time otherwise:
   tool. `build-and-run.sh` ad-hoc signs with `com.apple.security.smartcard`.
 - CryptoTokenKit's `send` returns `(sw, response)` — not `(response, sw)`.
 
-## Open questions for the first iPhone run
+## What the first iPhone run answered
 
-- **Does CoreNFC truncate at the requested `expectedResponseLength`?** See the
-  short-read defect above. The mitigations are in place, but CoreNFC's actual
-  behaviour is unconfirmed.
-- Does asking for more than 256 bytes make CoreNFC emit an *extended* `Le` that
-  a contactless card rejects? If so, the fallback is explicit `00 C0 00 00 00`
-  GET RESPONSE looping, the way the Android reader does it.
-- Does re-`SELECT`ing the applet cause trouble on any card? iOS already selects
-  it from the Info.plist AID list before handing over the tag
-  (`tag.initialSelectedAID`); `selectPIVApplet` re-sends it for explicitness and
-  parity with Android. The YubiKey accepts it. If a card objects, drop the call.
-- Is your PIV card dual-interface, and does it expose slot 9E over contactless
-  without a PIN? That assumption underpins the whole app and cannot be checked
-  with a contact reader.
-- CoreNFC has a reported ~1694-byte ceiling on response data. The 793-byte
-  object measured here fits comfortably; a larger certificate could approach it.
+Every question this section used to pose has been settled against a production PIV card on an iPhone 13. Recorded here because several answers
+contradict the documentation:
+
+- **Does CoreNFC walk `61 XX` GET RESPONSE chains? No.** This is the important
+  one. A `GET DATA` for a 1652-byte object returned 256 bytes with `SW 6100` and
+  stopped. Nothing surfaces the truncation — the caller receives a short buffer
+  and an apparently fine status word, and it fails later as a TLV parse error.
+  The Android `while` loop is required, not optional. `iPhone-App.md` claimed the
+  opposite and has been corrected.
+- **Do not compute `Le` for GENERAL AUTHENTICATE.** Asking for an exact length
+  earns `SW 6282` when it overshoots — a *warning*, with a perfectly valid
+  signature attached, that a strict `90 00` check throws away. Pass
+  `expectedResponseLength: 256` (CoreNFC's `Le = 0x00`) and let the GET RESPONSE
+  loop collect the rest. Works unchanged across RSA and ECC.
+- **Is the card dual-interface, serving slot 9E over contactless without a PIN?
+  Yes.** The premise of the whole app holds.
+- **Does re-`SELECT`ing the applet cause trouble? No.** Both the YubiKey and the
+  production card accept it.
+- **Is the certificate gzip-compressed on real cards? Yes** — CertInfo bit 0 set.
+  The YubiKey stores its certificate uncompressed, so only a real card exercises
+  `Gzip.swift`.
+- CoreNFC's reported ~1694-byte response ceiling was never approached, because
+  GET RESPONSE delivers in 256-byte instalments that are accumulated here rather
+  than in one buffer.
