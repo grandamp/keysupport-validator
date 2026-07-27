@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Shown in the system permission prompt the first time a scan starts. -->
+	<key>NFCReaderUsageDescription</key>
+	<string>KeySupport Validator reads the Card Authentication certificate from your PIV, CAC, or TWIC card to verify the card is genuine and its credential has not been revoked.</string>
+
+	<!--
+	  The PIV Card Application AID (NIST SP 800-73-4).
+
+	  This list is not optional and not advisory. iOS filters tags against it in
+	  hardware: if the AID is absent here, the card is never surfaced to the app
+	  and the reader session simply times out with no error worth reading.
+	-->
+	<key>com.apple.developer.nfc.readersession.iso7816.select-identifiers</key>
+	<array>
+		<string>A000000308000010000100</string>
+	</array>
+</dict>
+</plist>

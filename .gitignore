@@ -17,3 +17,10 @@ local.properties
 # Ignore keystore properties
 keystore.properties
 keystore/
+
+# Xcode / iOS
+xcuserdata/
+DerivedData/
+*.xcuserstate
+*.xcscmblueprint
+.swiftpm/

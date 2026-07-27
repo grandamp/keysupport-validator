@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Granted by adding the "Near Field Communication Tag Reading" capability in
+	  Xcode > Signing & Capabilities. Requires a paid Apple Developer Program
+	  membership; a free Apple ID cannot provision this entitlement, which is why
+	  there is no zero-cost path to running this app even on your own device.
+	-->
+	<key>com.apple.developer.nfc.readersession.formats</key>
+	<array>
+		<string>TAG</string>
+	</array>
+</dict>
+</plist>
