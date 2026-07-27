@@ -32,10 +32,18 @@ echo "Compiling test harness…"
 swiftc -o "$WORK/testrunner" \
     "$PIV/TLV.swift" \
     "$PIV/DistinguishedName.swift" \
+    "$PIV/CertificateDetails.swift" \
+    "$HERE/../KeySupportValidator/App/CredentialDetails.swift" \
     "$PIV/Gzip.swift" \
     "$PIV/PIVCrypto.swift" \
     "$WORK/main.swift"
 
 echo "Running…"
 echo
-"$WORK/testrunner" "$WORK/fixture_noname.gz" "$WORK/fixture_named.gz"
+# A real certificate with known validity, for the DER date parser.
+openssl req -x509 -newkey rsa:2048 -keyout "$WORK/k.pem" -nodes \
+    -subj "/CN=Test Certificate" -days 365 \
+    -outform DER -out "$WORK/cert.der" 2>/dev/null
+
+TEST_CERT_DER="$WORK/cert.der" \
+  "$WORK/testrunner" "$WORK/fixture_noname.gz" "$WORK/fixture_named.gz"

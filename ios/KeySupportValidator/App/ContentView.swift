@@ -12,9 +12,19 @@ struct ContentView: View {
             palette.background.ignoresSafeArea()
 
             VStack(spacing: 16) {
-                Spacer()
-                statusContent
-                Spacer()
+                // A validated credential can run to a dozen detail rows plus a
+                // trust chain, which overflows the screen. Scrolling the status
+                // area keeps the scan button reachable; the minHeight keeps short
+                // states (Ready to Scan, errors) vertically centred as before,
+                // rather than pinned to the top.
+                GeometryReader { geometry in
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            statusContent
+                        }
+                        .frame(maxWidth: .infinity, minHeight: geometry.size.height)
+                    }
+                }
                 scanButton
             }
             .padding(24)
@@ -58,16 +68,16 @@ struct ContentView: View {
                 .tint(palette.foreground)
                 .padding(.top, 8)
 
-        case .success(let subject, let path):
+        case .success(let summary):
             // The green screen means two independent checks passed, and a relying
             // party cares more about the second. Crediting only Proof of Possession
             // (as the Android app does) hides the fact that VSS was consulted at all.
             headline("Credential Valid")
             checkLine("Proof of Possession verified")
             checkLine("Validated against KeySupport VSS")
-            subjectCard(subject)
-            if !path.isEmpty {
-                certificatePathCard(path)
+            detailsCard(CredentialDetails.rows(for: summary))
+            if !summary.certificatePath.isEmpty {
+                certificatePathCard(summary.certificatePath)
             }
 
         case .failure(let title, let message):
@@ -93,23 +103,20 @@ struct ContentView: View {
         // own system sheet, so an explicit button is mandatory here.
     }
 
-    /// Renders the subject as labelled rows. Falls back to the raw string if it
-    /// does not parse as a distinguished name — showing something unexpected
-    /// beats showing nothing.
+    /// Renders whatever rows `CredentialDetails.rows(for:)` returns, in order.
+    /// To change what appears here, edit that function — not this view.
     @ViewBuilder
-    private func subjectCard(_ subject: String) -> some View {
-        let name = DistinguishedName(subject)
-
-        if name.isEmpty {
-            body(subject)
+    private func detailsCard(_ rows: [CredentialDetails.Detail]) -> some View {
+        if rows.isEmpty {
+            EmptyView()
         } else {
             VStack(alignment: .leading, spacing: 10) {
-                ForEach(name.fields) { field in
+                ForEach(rows) { row in
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(field.label.uppercased())
+                        Text(row.label.uppercased())
                             .font(.caption2.weight(.semibold))
                             .opacity(0.7)
-                        Text(field.value)
+                        Text(row.value)
                             .font(.subheadline)
                             .fixedSize(horizontal: false, vertical: true)
                     }

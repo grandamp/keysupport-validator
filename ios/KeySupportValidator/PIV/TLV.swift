@@ -96,6 +96,35 @@ enum TLV {
         try? value(ofTag: tag, in: bytes)
     }
 
+    /// One TLV at a single nesting level.
+    struct Element {
+        let tag: UInt8
+        let value: [UInt8]
+    }
+
+    /// Every TLV at this level, in order.
+    ///
+    /// Needed for X.509, where fields cannot be located by tag: `signature`,
+    /// `issuer`, `validity` and `subject` are all `SEQUENCE` (0x30), so the only
+    /// way to tell them apart is their position. Stops at the first malformed
+    /// header rather than throwing, returning what was parsed so far — a partial
+    /// read is still useful for display purposes.
+    static func elements(in bytes: [UInt8]) -> [Element] {
+        var found: [Element] = []
+        var offset = 0
+
+        while offset < bytes.count {
+            let tag = bytes[offset]
+            offset += 1
+            guard let (length, width) = try? readLength(bytes, at: offset) else { break }
+            offset += width
+            guard offset + length <= bytes.count else { break }
+            found.append(Element(tag: tag, value: Array(bytes[offset..<(offset + length)])))
+            offset += length
+        }
+        return found
+    }
+
     /// Total encoded size (tag + length field + value) declared by the header at
     /// the front of `bytes`, or nil if too few bytes have arrived to tell.
     ///

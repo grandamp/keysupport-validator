@@ -8,7 +8,7 @@ enum ScanState: Equatable {
     case readingCertificate
     case verifyingCard
     case validatingNetwork
-    case success(subject: String, path: [String])
+    case success(CredentialSummary)
     case failure(title: String, message: String)
 
     var isTerminal: Bool {
@@ -58,16 +58,20 @@ final class ScanViewModel: ObservableObject {
             // Shaped like a PIV subject — repeated OUs, a long serial — so the
             // layout is exercised realistically. Entirely fictional by design:
             // no real cardholder or issuer detail belongs in a repository.
-            return .success(
+            return .success(CredentialSummary(
                 subject: "SERIALNUMBER=00000000000000000000000000000000, "
                        + "OU=Example Bureau, OU=Example Department, "
                        + "O=Example Organization, C=ZZ",
-                path: [
+                certificatePath: [
                     "CN=Example Root CA G2, OU=Example PKI, O=Example Organization, C=ZZ",
                     "CN=Example Issuing CA G3, OU=Example PKI, O=Example Organization, C=ZZ",
                     "CN=EXAMPLE.CARDHOLDER.1234567890, OU=Example Organization, C=ZZ"
-                ]
-            )
+                ],
+                keyDescription: "RSA 2048",
+                notBefore: Date(timeIntervalSince1970: 1_767_225_600),
+                notAfter: Date(timeIntervalSince1970: 1_798_761_600),
+                checkedAt: Date()
+            ))
         case "revoked":
             return .failure(title: "Revoked", message: "Credential Validation Failed: certificate has been revoked")
         case "expired":
@@ -131,7 +135,7 @@ final class ScanViewModel: ObservableObject {
         state = .validatingNetwork
         do {
             let response = try await vss.validate(certificateDER: result.certificateDER)
-            state = Self.interpret(response, fallbackSubject: PIVCrypto.subjectSummary(of: result.certificate))
+            state = Self.interpret(response, from: result)
         } catch {
             state = .failure(title: "Network Error", message: error.localizedDescription)
         }
@@ -141,12 +145,20 @@ final class ScanViewModel: ObservableObject {
         state = PIVReader.isAvailable ? .idle : .unsupported
     }
 
-    private static func interpret(_ response: VSSResponse, fallbackSubject: String) -> ScanState {
+    private static func interpret(_ response: VSSResponse, from result: PIVScanResult) -> ScanState {
         if response.validationResult?.result == "SUCCESS" {
-            return .success(
-                subject: response.x509SubjectName ?? fallbackSubject,
-                path: response.x509CertificatePath ?? []
-            )
+            // Validity dates come from the certificate itself; iOS exposes no API
+            // for them. See CertificateDetails.
+            let validity = CertificateDetails.validity(fromDER: result.certificateDER)
+            return .success(CredentialSummary(
+                subject: response.x509SubjectName
+                    ?? PIVCrypto.subjectSummary(of: result.certificate),
+                certificatePath: response.x509CertificatePath ?? [],
+                keyDescription: CertificateDetails.keyDescription(of: result.certificate),
+                notBefore: validity?.notBefore,
+                notAfter: validity?.notAfter,
+                checkedAt: Date()
+            ))
         }
 
         let reason = response.validationResult?.invalidityReasonText

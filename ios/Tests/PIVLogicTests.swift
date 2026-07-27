@@ -228,6 +228,102 @@ check("garbage yields no fields", DistinguishedName("not a dn at all").isEmpty)
 check("empty string yields no fields", DistinguishedName("").isEmpty)
 check("empty value skipped", DistinguishedName("CN=, O=Gov").fields.count == 1)
 
+// MARK: - Positional TLV walking (needed for X.509)
+
+print("TLV element walking")
+
+var seq = try! TLV.encode(tag: 0x02, value: [0x01])          // INTEGER
+seq += try! TLV.encode(tag: 0x30, value: [0xAA])             // SEQUENCE
+seq += try! TLV.encode(tag: 0x30, value: [0xBB, 0xCC])       // SEQUENCE
+let walked = TLV.elements(in: seq)
+check("walks 3 elements", walked.count == 3)
+check("tags in order", walked.map(\.tag) == [0x02, 0x30, 0x30])
+check("distinguishes same-tag siblings by position",
+      walked[1].value == [0xAA] && walked[2].value == [0xBB, 0xCC])
+check("malformed tail stops cleanly rather than throwing",
+      TLV.elements(in: seq + [0x30, 0x82]).count == 3)
+check("empty input yields no elements", TLV.elements(in: []).isEmpty)
+
+// MARK: - ASN.1 time
+
+print("ASN.1 time parsing")
+
+let utc = DateFormatter()
+utc.locale = Locale(identifier: "en_US_POSIX")
+utc.timeZone = TimeZone(identifier: "UTC")
+utc.dateFormat = "yyyy-MM-dd HH:mm:ss"
+
+func asn1(_ tag: UInt8, _ text: String) -> String? {
+    guard let d = CertificateDetails.asn1Time(tag: tag, value: Array(text.utf8)) else { return nil }
+    return utc.string(from: d)
+}
+
+check("UTCTime parsed", asn1(0x17, "260727120000Z") == "2026-07-27 12:00:00")
+check("GeneralizedTime parsed", asn1(0x18, "20260727120000Z") == "2026-07-27 12:00:00")
+// RFC 5280 4.1.2.5.1: 00-49 -> 20xx, 50-99 -> 19xx.
+check("two-digit year 49 -> 2049", (asn1(0x17, "490101000000Z") ?? "").hasPrefix("2049"))
+check("two-digit year 50 -> 1950", (asn1(0x17, "500101000000Z") ?? "").hasPrefix("1950"))
+check("unknown time tag rejected", asn1(0x99, "260727120000Z") == nil)
+check("garbage rejected", asn1(0x17, "not-a-time") == nil)
+
+// MARK: - Certificate validity from DER
+
+print("Certificate validity")
+
+if let certPath = ProcessInfo.processInfo.environment["TEST_CERT_DER"],
+   let der = FileManager.default.contents(atPath: certPath) {
+    if let validity = CertificateDetails.validity(fromDER: der) {
+        check("validity extracted from a real certificate", true)
+        check("notAfter is after notBefore", validity.notAfter > validity.notBefore)
+        let days = validity.notAfter.timeIntervalSince(validity.notBefore) / 86_400
+        check("span is the 365 days openssl was asked for", abs(days - 365) < 2)
+    } else {
+        failures += 1; checks += 1
+        print("  FAIL could not extract validity from the generated certificate")
+    }
+} else {
+    print("  SKIP no TEST_CERT_DER fixture")
+}
+check("garbage DER yields nil, not a crash",
+      CertificateDetails.validity(fromDER: Data([0x30, 0x03, 0x02, 0x01, 0x01])) == nil)
+check("empty DER yields nil", CertificateDetails.validity(fromDER: Data()) == nil)
+
+// MARK: - Success-screen rows
+
+print("Credential detail rows")
+
+let summary = CredentialSummary(
+    subject: "SERIALNUMBER=0123, OU=Example Bureau, O=Example Organization, C=ZZ",
+    certificatePath: ["CN=Example Root", "CN=Example Issuing CA", "CN=Example Leaf"],
+    keyDescription: "RSA 2048",
+    notBefore: Date(timeIntervalSince1970: 1_767_225_600),
+    notAfter: Date(timeIntervalSince1970: 1_798_761_600),
+    checkedAt: Date(timeIntervalSince1970: 1_767_225_600)
+)
+let detailRows = CredentialDetails.rows(for: summary)
+let labels = detailRows.map(\.label)
+
+check("subject attributes lead the list",
+      Array(labels.prefix(4)) == ["Card Serial", "Organizational Unit", "Organization", "Country"])
+check("key row present", labels.contains("Key"))
+check("issuer taken from second-to-last path entry",
+      detailRows.first { $0.label == "Issued By" }?.value == "CN=Example Issuing CA")
+check("validity rows present", labels.contains("Valid From") && labels.contains("Valid Until"))
+check("checked row present", labels.contains("Checked"))
+
+// Nil values must drop out rather than render blank rows.
+let sparse = CredentialSummary(subject: "CN=Someone", certificatePath: [],
+                               keyDescription: nil, notBefore: nil, notAfter: nil,
+                               checkedAt: Date(timeIntervalSince1970: 0))
+let sparseLabels = CredentialDetails.rows(for: sparse).map(\.label)
+check("absent key omitted", !sparseLabels.contains("Key"))
+check("absent dates omitted",
+      !sparseLabels.contains("Valid From") && !sparseLabels.contains("Valid Until"))
+check("absent path omits issuer", !sparseLabels.contains("Issued By"))
+check("checked row always present", sparseLabels.contains("Checked"))
+check("issuer nil when path holds only a leaf",
+      CredentialDetails.issuer(from: ["CN=Only Leaf"]) == nil)
+
 // MARK: - Gzip
 
 print("Gzip decompression")
