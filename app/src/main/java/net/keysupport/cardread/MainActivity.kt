@@ -110,7 +110,7 @@ class MainActivity : ComponentActivity(), NfcAdapter.ReaderCallback {
                     
                     if (!isPopValid) {
                         withContext(Dispatchers.Main) {
-                            uiState = ScanState.Error("Proof of Possession signature validation failed.", "PoP Failed")
+                            uiState = ScanState.Error("Proof of Possession signature validation failed.", "PoP Failed", cert, java.util.Date())
                         }
                         return@launch
                     }
@@ -121,27 +121,29 @@ class MainActivity : ComponentActivity(), NfcAdapter.ReaderCallback {
 
                     val base64Cert = Base64.encodeToString(certBytes, Base64.NO_WRAP)
                     val request = VssRequest(validationPolicyId = "2.16.840.1.101.10.2.18.2.2.1", x509Certificate = base64Cert)
+                    val checkDate = java.util.Date()
 
                     val response = try {
                         VssClient.api.validateCertificate(request)
                     } catch (e: UnknownHostException) {
-                        withContext(Dispatchers.Main) { uiState = ScanState.Error("No Internet Connection", "Network Error") }
+                        withContext(Dispatchers.Main) { uiState = ScanState.Error("No Internet Connection", "Network Error", cert, checkDate) }
                         return@launch
                     } catch (e: ConnectException) {
-                        withContext(Dispatchers.Main) { uiState = ScanState.Error("Could not connect to validation server", "Network Error") }
+                        withContext(Dispatchers.Main) { uiState = ScanState.Error("Could not connect to validation server", "Network Error", cert, checkDate) }
                         return@launch
                     } catch (e: SocketTimeoutException) {
-                        withContext(Dispatchers.Main) { uiState = ScanState.Error("Connection to server timed out", "Network Error") }
+                        withContext(Dispatchers.Main) { uiState = ScanState.Error("Connection to server timed out", "Network Error", cert, checkDate) }
                         return@launch
                     } catch (e: Exception) {
-                        withContext(Dispatchers.Main) { uiState = ScanState.Error("Network Error: ${e.message}", "Error") }
+                        withContext(Dispatchers.Main) { uiState = ScanState.Error("Network Error: ${e.message}", "Error", cert, checkDate) }
                         return@launch
                     }
 
                     withContext(Dispatchers.Main) {
                         if (response.validationResult?.result == "SUCCESS") {
                             uiState = ScanState.Success(
-                                subject = response.x509SubjectName ?: cert.subjectX500Principal.name,
+                                cert = cert,
+                                checkDate = checkDate,
                                 path = response.x509CertificatePath
                             )
                         } else {
@@ -156,7 +158,7 @@ class MainActivity : ComponentActivity(), NfcAdapter.ReaderCallback {
                                 else -> "Validation Error"
                             }
                                 
-                            uiState = ScanState.Error("Credential Validation Failed: $reason", title)
+                            uiState = ScanState.Error("Credential Validation Failed: $reason", title, cert, checkDate)
                         }
                     }
 
@@ -181,8 +183,8 @@ sealed class ScanState {
     object Scanning : ScanState()
     object ScanningPoP : ScanState()
     object ValidatingNetwork : ScanState()
-    data class Success(val subject: String, val path: List<String>?) : ScanState()
-    data class Error(val message: String, val title: String = "Error") : ScanState()
+    data class Success(val cert: X509Certificate, val checkDate: java.util.Date, val path: List<String>?) : ScanState()
+    data class Error(val message: String, val title: String = "Error", val cert: X509Certificate? = null, val checkDate: java.util.Date? = null) : ScanState()
 }
 
 @Composable
@@ -241,35 +243,71 @@ fun MainScreen(state: ScanState, onOpenSettings: () -> Unit, modifier: Modifier 
                     CircularProgressIndicator(modifier = Modifier.padding(top = 16.dp), color = textColor)
                 }
                 is ScanState.Success -> {
-                    Text("Proof of Possession Success!", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = textColor)
-                    Text(state.subject, modifier = Modifier.padding(top = 16.dp), color = textColor)
-
-                    if (!state.path.isNullOrEmpty()) {
-                        var expanded by remember { mutableStateOf(false) }
-                        
-                        Spacer(modifier = Modifier.height(24.dp))
-                        
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { expanded = !expanded },
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFC8E6C9))
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text("Certificate Path (Tap to ${if (expanded) "collapse" else "expand"})", fontWeight = FontWeight.Bold, color = textColor)
-                                if (expanded) {
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    state.path.forEachIndexed { index, certName ->
-                                        Text("${index + 1}. $certName", fontSize = 12.sp, color = textColor, modifier = Modifier.padding(bottom = 4.dp))
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    Text("Credential Valid", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = textColor)
+                    Text("Proof of Possession and VSS checks passed", modifier = Modifier.padding(top = 4.dp, bottom = 16.dp), color = textColor)
+                    
+                    CredentialDetailsCard(
+                        cert = state.cert,
+                        checkDate = state.checkDate,
+                        path = state.path,
+                        textColor = textColor,
+                        cardColor = Color(0xFFC8E6C9)
+                    )
                 }
                 is ScanState.Error -> {
                     Text(state.title, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = textColor)
-                    Text(state.message, modifier = Modifier.padding(top = 16.dp), color = textColor)
+                    Text(state.message, modifier = Modifier.padding(top = 16.dp, bottom = 16.dp), color = textColor)
+                    
+                    state.cert?.let { cert ->
+                        CredentialDetailsCard(
+                            cert = cert,
+                            checkDate = state.checkDate,
+                            path = null, // don't show path on error
+                            textColor = textColor,
+                            cardColor = Color(0xFFFFCDD2)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CredentialDetailsCard(
+    cert: X509Certificate,
+    checkDate: java.util.Date?,
+    path: List<String>?,
+    textColor: Color,
+    cardColor: Color
+) {
+    val rows = CredentialDetails.getRows(cert, checkDate)
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = cardColor)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            rows.forEach { row ->
+                Column(modifier = Modifier.padding(bottom = 8.dp)) {
+                    Text(row.label, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = textColor.copy(alpha = 0.7f))
+                    Text(row.value, fontSize = 14.sp, color = textColor)
+                }
+            }
+            
+            if (!path.isNullOrEmpty()) {
+                var expanded by remember { mutableStateOf(true) }
+                Spacer(modifier = Modifier.height(8.dp))
+                HorizontalDivider(color = textColor.copy(alpha = 0.2f))
+                Spacer(modifier = Modifier.height(8.dp))
+                Column(modifier = Modifier.clickable { expanded = !expanded }.fillMaxWidth()) {
+                    Text("CERTIFICATE PATH ${if (expanded) "▼" else "▶"}", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = textColor.copy(alpha = 0.7f))
+                    if (expanded) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        path.forEachIndexed { index, certName ->
+                            Text("${index + 1}. $certName", fontSize = 12.sp, color = textColor, modifier = Modifier.padding(bottom = 2.dp))
+                        }
+                    }
                 }
             }
         }
