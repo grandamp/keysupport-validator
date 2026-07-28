@@ -1,16 +1,15 @@
 # KeySupport Validator (formerly CardRead)
 
-A modern Android application built with Kotlin and Jetpack Compose to read PIV/CAC/TWIC Card Authentication Certificates via NFC, perform cryptographic Proof of Possession (PoP), and validate the certificates against the KeySupport Validation Service (VSS).
+Modern native applications (Android and iOS) to read PIV/CAC/TWIC Card Authentication Certificates via NFC, perform cryptographic Proof of Possession (PoP), and validate the certificates against the KeySupport Validation Service (VSS).
 
-## Architecture
-* **Language:** Kotlin
-* **UI Framework:** Jetpack Compose (Material 3)
-* **Concurrency:** Kotlin Coroutines (Dispatchers.IO for NFC and Networking)
-* **Networking:** Retrofit2 + OkHttp3
-* **Serialization:** Kotlinx.serialization (JSON)
+## Platforms
+* 🤖 **Android**: Native Kotlin + Jetpack Compose (located in root directory)
+* 🍏 **iOS**: Native Swift + SwiftUI + CoreNFC (located in `ios/` directory)
 
-## Core NFC & APDU Logic
-The app uses Android's `NfcAdapter.ReaderCallback` to handle NFC discovery reliably via `IsoDep`. 
+For detailed iOS instructions, architecture, and testing notes, see [ios/README.md](ios/README.md).
+
+## Shared Architecture & Logic
+Both applications share exact feature parity and APDU protocol logic:
 
 ### Applet Selection
 * **PIV Applet AID:** `00 A4 04 00 0B A0 00 00 03 08 00 00 10 00 01 00`
