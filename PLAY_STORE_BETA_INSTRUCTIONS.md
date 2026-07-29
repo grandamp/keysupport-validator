@@ -4,7 +4,7 @@ Publishing an invite-only beta on the Google Play Store is done using the **Clos
 
 ### Step 1: Log into Google Play Console
 1. Go to the [Google Play Console](https://play.google.com/console).
-2. Log in using your `todd@keysupport.net` account. *(Note: You must have a registered Google Play Developer account).*
+2. Log in using your developer account. *(Note: You must have a registered Google Play Developer account).*
 
 ### Step 2: Create the App
 1. From the dashboard, click **Create app**.
