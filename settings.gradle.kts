@@ -22,5 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "CardRead"
+rootProject.name = "KeySupportValidator"
 include(":app")
