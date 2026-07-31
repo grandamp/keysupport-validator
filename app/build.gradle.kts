@@ -32,8 +32,8 @@ android {
         applicationId = "net.keysupport.validator"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.0.0-beta.3"
+        versionCode = 4
+        versionName = "1.0.2-beta.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
