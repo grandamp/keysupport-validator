@@ -1,4 +1,4 @@
-package net.keysupport.cardread
+package net.keysupport.validator
 
 import java.security.cert.X509Certificate
 import java.security.interfaces.ECPublicKey

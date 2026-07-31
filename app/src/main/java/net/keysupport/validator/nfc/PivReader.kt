@@ -1,4 +1,4 @@
-package net.keysupport.cardread.nfc
+package net.keysupport.validator.nfc
 
 import android.nfc.tech.IsoDep
 import android.util.Log

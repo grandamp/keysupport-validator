@@ -1,4 +1,4 @@
-package net.keysupport.cardread
+package net.keysupport.validator
 
 import org.junit.Test
 

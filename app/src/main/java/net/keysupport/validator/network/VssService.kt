@@ -1,4 +1,4 @@
-package net.keysupport.cardread.network
+package net.keysupport.validator.network
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json

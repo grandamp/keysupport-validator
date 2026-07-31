@@ -1,4 +1,4 @@
-package net.keysupport.cardread
+package net.keysupport.validator
 
 import android.content.Intent
 import android.nfc.NfcAdapter
@@ -28,10 +28,10 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import net.keysupport.cardread.network.VssClient
-import net.keysupport.cardread.network.VssRequest
-import net.keysupport.cardread.nfc.PivReader
-import net.keysupport.cardread.ui.theme.CardReadTheme
+import net.keysupport.validator.network.VssClient
+import net.keysupport.validator.network.VssRequest
+import net.keysupport.validator.nfc.PivReader
+import net.keysupport.validator.ui.theme.CardReadTheme
 import java.io.ByteArrayInputStream
 import java.net.ConnectException
 import java.net.SocketTimeoutException

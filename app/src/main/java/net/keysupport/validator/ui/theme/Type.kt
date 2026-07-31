@@ -1,4 +1,4 @@
-package net.keysupport.cardread.ui.theme
+package net.keysupport.validator.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
