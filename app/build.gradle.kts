@@ -8,7 +8,7 @@ plugins {
 }
 
 android {
-    namespace = "net.keysupport.cardread"
+    namespace = "net.keysupport.validator"
     compileSdk = 35
     
     val keystorePropertiesFile = rootProject.file("keystore.properties")
@@ -29,7 +29,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "net.keysupport.cardread"
+        applicationId = "net.keysupport.validator"
         minSdk = 26
         targetSdk = 35
         versionCode = 3
