@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace = "net.keysupport.validator"
-    compileSdk = 35
+    compileSdk = 36
     
     val keystorePropertiesFile = rootProject.file("keystore.properties")
     val keystoreProperties = Properties()
@@ -31,9 +31,9 @@ android {
     defaultConfig {
         applicationId = "net.keysupport.validator"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 6
-        versionName = "1.0.2-beta.3"
+        targetSdk = 36
+        versionCode = 7
+        versionName = "1.0.2-beta.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
