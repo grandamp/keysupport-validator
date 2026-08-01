@@ -32,8 +32,8 @@ android {
         applicationId = "net.keysupport.validator"
         minSdk = 26
         targetSdk = 36
-        versionCode = 7
-        versionName = "1.0.2-beta.4"
+        versionCode = 8
+        versionName = "1.0.2-beta.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -46,6 +46,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            ndk.debugSymbolLevel = "FULL"
         }
     }
     compileOptions {
