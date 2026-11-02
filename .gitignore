@@ -24,3 +24,8 @@ DerivedData/
 *.xcuserstate
 *.xcscmblueprint
 .swiftpm/
+
+wear-spike/
+app/src/main/java/net/keysupport/validator/wear/
+.kotlin/
+

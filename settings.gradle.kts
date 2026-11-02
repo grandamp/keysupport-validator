@@ -23,4 +23,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "KeySupportValidator"
-include(":app")
+include(":app", ":wear-spike")
