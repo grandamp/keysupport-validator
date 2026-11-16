@@ -10,12 +10,14 @@ kotlin = "2.2.10"
 composeBom = "2026.02.01"
 
 retrofit = "2.11.0"
-okhttp = "4.12.0"
+okhttp = "5.5.1"
 kotlinxSerializationJson = "1.6.3"
 coroutines = "1.8.0"
 fragment = "1.9.1"
 playServicesWearable = "20.0.1"
 coroutinesPlayServices = "1.11.0"
+cronetOkhttp = "0.1.2"
+cronetBundled = "500.1.0"
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -41,6 +43,8 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 androidx-fragment = { group = "androidx.fragment", name = "fragment", version.ref = "fragment" }
 play-services-wearable = { group = "com.google.android.gms", name = "play-services-wearable", version.ref = "playServicesWearable" }
 kotlinx-coroutines-play-services = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-play-services", version.ref = "coroutinesPlayServices" }
+cronet-okhttp = { group = "com.google.net.cronet", name = "cronet-okhttp", version.ref = "cronetOkhttp" }
+cronet-bundled = { group = "org.chromium.net", name = "cronet-bundled", version.ref = "cronetBundled" }
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

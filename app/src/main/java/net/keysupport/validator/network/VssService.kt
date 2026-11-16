@@ -1,12 +1,13 @@
 package net.keysupport.validator.network
 
+import android.content.Context
+import com.google.net.cronet.okhttptransport.CronetInterceptor
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-import okhttp3.ConnectionSpec
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import okhttp3.TlsVersion
 import okhttp3.logging.HttpLoggingInterceptor
+import org.chromium.net.CronetEngine
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import retrofit2.http.Body
@@ -43,23 +44,36 @@ interface VssApi {
 }
 
 object VssClient {
+    private lateinit var appContext: Context
+
+    fun init(context: Context) {
+        if (!::appContext.isInitialized) {
+            appContext = context.applicationContext
+        }
+    }
+
     private val logging = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
     }
-    
-    private val tls13Only = ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS)
-        .tlsVersions(TlsVersion.TLS_1_3)
-        .build()
 
-    private val client = OkHttpClient.Builder()
-        .connectionSpecs(listOf(tls13Only))
-        .addInterceptor(logging)
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
-        .build()
-        
+    private val cronetEngine: CronetEngine by lazy {
+        check(::appContext.isInitialized) {
+            "VssClient.init(context) must be called before accessing VssClient.api"
+        }
+        CronetEngine.Builder(appContext).build()
+    }
+
+    private val client: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .addInterceptor(logging)
+            .addInterceptor(CronetInterceptor.newBuilder(cronetEngine).build())
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .build()
+    }
+
     private val json = Json { ignoreUnknownKeys = true }
-    
+
     val api: VssApi by lazy {
         Retrofit.Builder()
             .baseUrl("https://keysupport.net/")
