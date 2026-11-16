@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace = "net.keysupport.validator"
-    compileSdk = 36
+    compileSdk = 37
     
     val keystorePropertiesFile = rootProject.file("keystore.properties")
     val keystoreProperties = Properties()
@@ -31,9 +31,9 @@ android {
     defaultConfig {
         applicationId = "net.keysupport.validator"
         minSdk = 26
-        targetSdk = 36
-        versionCode = 9
-        versionName = "1.0.2-beta.9"
+        targetSdk = 37
+        versionCode = 11
+        versionName = "1.0.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -41,6 +41,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -59,8 +60,13 @@ android {
 }
 
 dependencies {
-    implementation("com.google.android.gms:play-services-wearable:18.1.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.0")
+    constraints {
+        implementation(libs.androidx.fragment) {
+            because("play-services-base pulls in outdated androidx.fragment:fragment:1.0.0/1.1.0 flagged by Google Play Console")
+        }
+    }
+    implementation(libs.play.services.wearable)
+    implementation(libs.kotlinx.coroutines.play.services)
     // Core Android/Kotlin
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

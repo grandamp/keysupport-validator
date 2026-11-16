@@ -2,8 +2,10 @@ package net.keysupport.validator.network
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import okhttp3.ConnectionSpec
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.TlsVersion
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.kotlinx.serialization.asConverterFactory
@@ -45,7 +47,12 @@ object VssClient {
         level = HttpLoggingInterceptor.Level.BODY
     }
     
+    private val tls13Only = ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS)
+        .tlsVersions(TlsVersion.TLS_1_3)
+        .build()
+
     private val client = OkHttpClient.Builder()
+        .connectionSpecs(listOf(tls13Only))
         .addInterceptor(logging)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
@@ -55,7 +62,7 @@ object VssClient {
     
     val api: VssApi by lazy {
         Retrofit.Builder()
-            .baseUrl("https://home.keysupport.net/")
+            .baseUrl("https://keysupport.net/")
             .client(client)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()
